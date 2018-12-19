@@ -1,0 +1,177 @@
+create table admin_table (serial number(5),username varchar(20),password varchar(20), name varchar(50), email varchar(30), type varchar(20))
+
+insert into admin_table values(1,'tonmoy','1234','Tonmoy Asif','tonmoy.asif@gmail.com','admin');
+insert into admin_table values(2,'rony','1111','Sakawat Rony','shrony@gmail.com','admin');
+insert into admin_table values(3,'karno','2222','Karno Sarker','karnosarker@gmail.com','user');
+
+---------------------------------------------------------------------------
+drop table book_table
+
+create table book_table (id number(3),name varchar(20), author varchar(50), category varchar(30), quantity number(3))
+
+insert into book_table values(1,'Harry Potter','J K Rowling','Fantasy',5);
+insert into book_table values(2,'Twlight','Catherine Hardwicke','Horror',9);
+
+-------------------------------------------------------------------------
+drop table book_lend
+
+create table book_lend (book_id number(3),book_name varchar(20), book_author varchar(50), user_name varchar(30), borrow date, return date, status varchar(30))
+
+insert into book_lend values(2,'Twlight','Catherine Hardwicke','karno',sysdate,sysdate,'borrowed');
+
+---------------------------------------------------------------------------
+CREATE SEQUENCE seq_book
+MINVALUE 1
+START WITH 1
+INCREMENT BY 1
+CACHE 100;
+
+------------------------------------------------------------------------
+CREATE SEQUENCE seq_admin
+MINVALUE 1
+START WITH 1
+INCREMENT BY 1
+CACHE 100;
+
+------------------------------------------------------------------------------------
+GRANT CREATE VIEW TO scott;
+create or replace view view_book_table(ID,name,author,category,quantity) as select ID,name,author,category,quantity from book_table with read only;
+-----------------------------------------------------------------------------------
+
+create or replace view view_issued_book(book_name,book_author,user_name,borrow,return,status) as select book_name,book_author,user_name,borrow,return,status from book_lend with read only;
+----------------------------------------------------------------------------------
+
+create or replace view user_borrow_count (serial,username,book_id) as select a.SERIAL,a.USERNAME,l.book_id from admin_table a,book_lend l where a.type = 'user' and l.user_name(+)=a.username;
+
+----------------------------------------------------------------------------------
+
+
+create table book_log (username varchar(30),book_id number(5),book_old_name varchar(20),book_new_name varchar(20),old_author varchar(20),new_author varchar(20),old_category varchar(30),new_category varchar(30),old_quantity number(5),new_quantity number(5), the_date date)
+
+create or replace trigger book_trigger
+after
+update of name on book_table
+for each row
+
+begin
+if(updating) then
+insert into book_log values(user,:new.id,:old.name,:new.name,:old.author,:new.author,:old.category,:new.category,:old.quantity,:new.quantity,sysdate);
+
+end if;
+end;
+
+---------------------------------------------------------------------------------
+
+create table user_log (username varchar(30),old_username varchar(20),old_password varchar(30),old_name varchar(30),new_name varchar(30),old_email varchar(30),new_email varchar(30), the_date date)
+
+create or replace trigger user_trigger
+after
+update of name on admin_table
+for each row
+
+begin
+if(updating) then
+insert into user_log values(user,:old.username,:old.password,:old.name,:new.name,:old.email,:new.email,sysdate);
+
+end if;
+end;
+
+-----------------------------------------------------------------------------------
+
+create table issue_book_log (username varchar(30),book_id number(3,0),book_name varchar(20),book_author varchar(50),user_name varchar(30),borrow date,return date, status varchar(30),the_date date)
+
+create or replace trigger issue_book_trigger
+after
+insert or delete on book_lend
+
+begin
+if(INSERTING) then
+insert into issue_book_log values(user,book_id,book_name,book_author,user_name,borrow,return,'Book Issued',sysdate);
+elsif(DELETING) then
+insert into issue_book_log values(user,book_id,book_name,book_author,user_name,borrow,return,'Book Returned',sysdate);
+end if;
+
+--------
+create table issue_book_log (username varchar(30),status varchar(30),the_date date)
+
+create or replace trigger issue_book_trigger
+after
+insert or delete on book_lend
+
+begin
+if(INSERTING) then
+insert into issue_book_log values(user,'Book Borrowed',sysdate);
+elsif(DELETING) then
+insert into issue_book_log values(user,'Book returned',sysdate);
+end if;
+end;
+
+------------------------
+create or replace procedure procedure_add_book
+(name in book_table.name%type,author in book_table.author%type,category in book_table.category%type,quantity in book_table.quantity%type,status out book_table.name%type)
+as
+begin
+
+if(name = '' or author = '' or category = '' or quantity = '') then
+select distinct 'Failed to Insert' into status from book_table;
+
+else
+insert into book_table values (seq_book.nextval, name, author, category, quantity);
+select distinct 'Successfully Inserted' into status from book_table;
+end if;
+
+end
+---------------
+create or replace procedure procedure_add_user
+(username in admin_table.username%type,password in admin_table.password%type,name in admin_table.name%type,email in admin_table.email%type,type in admin_table.type%type,status out admin_table.username%type)
+as
+begin
+
+if(username= '' or password= '' or name= '' or email= '' or type= '') then
+select distinct 'Failed to Insert' into status from admin_table;
+
+else
+insert into admin_table values (seq_admin.nextval, username, password, name, email, type);
+select distinct 'Successfully Inserted' into status from admin_table;
+end if;
+
+end
+
+--------------------------------------------------------------------------------------
+(Test......)
+drop procedure procedure_issue_book
+
+create or replace procedure procedure_issue_book
+(BOOK_ID in book_lend.BOOK_ID%type,BOOK_NAME in book_lend.BOOK_NAME%type,BOOK_AUTHOR in book_lend.BOOK_AUTHOR%type,USER_NAME in book_lend.USER_NAME%type,RETURN in book_lend.RETURN%type,STATUS in book_lend.STATUS%type, QUANTITY in book_lend.BOOK_ID%type, msg out book_lend.BOOK_NAME%type)
+as
+begin
+
+if(BOOK_ID= '' or BOOK_NAME= '' or BOOK_AUTHOR= '' or USER_NAME= '' or RETURN= '' or STATUS= '' or QUANTITY= '') then
+select distinct 'Failed to Insert' into msg from book_lend;
+
+else
+insert into book_lend values (BOOK_ID, BOOK_NAME, BOOK_AUTHOR, USER_NAME, sysdaye, RETURN,STATUS);
+UPDATE book_table SET QUANTITY=QUANTITY WHERE ID=BOOK_ID;
+select distinct 'Successfully Inserted' into msg from book_lend;
+end if;
+
+end
+
+-------------------------------------
+create or replace procedure procedure_edit_user
+(namex in admin_table.name %type,emailx in admin_table.email%type,usernamex in admin_table.username%type)
+as
+begin
+if(namex IS NOT NULL or emailx IS NOT NULL or usernamex IS NOT NULL) then
+UPDATE admin_table SET NAME=namex ,EMAIL=emailx  WHERE USERNAME=usernamex;
+end if;
+end
+------------------------------------------------------
+create or replace procedure procedure_edit_book
+(namex in book_table.name%type,authorx in book_table.author%type,categoryx in book_table.category%type,quantityx in book_table.quantity%type,idx in book_table.id%type)
+as
+begin
+if(namex IS NOT NULL or authorx IS NOT NULL or categoryx IS NOT NULL or quantityx IS NOT NULL) then
+UPDATE book_table SET name=namex,author=authorx,category=categoryx,quantity=quantityx WHERE idx=id;
+end if;
+end
